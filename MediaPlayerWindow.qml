@@ -97,14 +97,31 @@ PopupWindow {
       }
     }
     Canvas {
+      id: audioVis
       Layout.alignment: Qt.AlignHCenter
       Layout.fillWidth: true
       Layout.preferredHeight: 50
       Layout.bottomMargin: 5
       onPaint: {
+        drawAudioVis()
+      }
+      function drawAudioVis() {
         var ctx = getContext("2d");
         ctx.fillStyle = Qt.rgba(.3, .8, .5, 1);
-        ctx.fillRect(0, 0, width, height);
+    
+        for (let i = 0; i < 300; i++) {
+          ctx.ellipse(i / 300 * width, Math.abs(AudioVisData.data[i]) * 10, 3, 3);
+          if (i === 67) {
+            console.info(i / 300 * width, Math.abs(AudioVisData.data[i]) * 10)
+          }
+        }
+        ctx.fill()
+      }
+    }
+    FrameAnimation {
+      running: true
+      onTriggered: {
+        audioVis.drawAudioVis()
       }
     }
     Item {
