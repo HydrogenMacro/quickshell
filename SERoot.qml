@@ -4,7 +4,7 @@ import Quickshell.Widgets
 import QtQuick
 import QtQuick.Layouts
 
-Scope {
+Scope {  
   Variants {
     model: Quickshell.screens
     delegate: Component {

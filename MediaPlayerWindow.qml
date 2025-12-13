@@ -96,34 +96,75 @@ PopupWindow {
         }
       }
     }
-    Canvas {
+    /*
+    ShaderEffect {
       id: audioVis
       Layout.alignment: Qt.AlignHCenter
       Layout.fillWidth: true
       Layout.preferredHeight: 50
       Layout.bottomMargin: 5
+
+      fragmentShader: Qt.resolvedUrl("assets/shaders/audioVis.frag.qsb")
+
+    }*/
+    Canvas {
+      id: audioVisDisplay
+      Layout.alignment: Qt.AlignHCenter
+      Layout.fillWidth: true
+      Layout.preferredHeight: 50
+      Layout.bottomMargin: 5
+      property var ctx
+      property real ft_sample_count: 200
       onPaint: {
-        drawAudioVis()
+        if (!Function.__audioVis) return
+        let audioVis = Function.__audioVis;
+        if (!audioVisDisplay.ctx)
+          audioVisDisplay.ctx = getContext("2d");
+        let ctx = audioVisDisplay.ctx;
+        ctx.reset();
+        ctx.beginPath();
+        ctx.strokeStyle = Qt.rgba(.5, .8, .5, 1);
+        let maxSample = 0;
+        let rmsSum = 0;
+        for (let i = 0; i < audioVis.data.length; i++) {
+          maxSample = Math.max(audioVis.data[i], maxSample);
+          rmsSum += audioVis.data[i] ** 2;
+        }
+        
+        for (let i = 0; i < audioVisDisplay.ft_sample_count; i++) {
+          let val = audioVis.data[i];
+          if (i == 67) console.info(val, maxSample)
+          val = val / maxSample;
+          ctx.lineTo(i / audioVisDisplay.ft_sample_count * width, val * 30 + Math.log2(audioVis.volume) * 10, 3, 3);
+        }
+        ctx.stroke();
       }
-      function drawAudioVis() {
-        var ctx = getContext("2d");
-        ctx.fillStyle = Qt.rgba(.3, .8, .5, 1);
-    
-        for (let i = 0; i < 300; i++) {
-          ctx.ellipse(i / 300 * width, Math.abs(AudioVisData.data[i]) * 10, 3, 3);
-          if (i === 67) {
-            console.info(i / 300 * width, Math.abs(AudioVisData.data[i]) * 10)
+
+      Process {
+        running: true
+        command: ["/home/hydro/.config/quickshell/audiowiz/audiowiz", "10", "1500", audioVisDisplay.ft_sample_count]
+
+        stdout: SplitParser {
+          onRead: text => {
+            // global obj prop because theres a memory leak if normal qml properties are used
+            if (!Function.__audioVis)
+              Function.__audioVis = {
+                data: Array(audioVisDisplay.ft_sample_count),
+                diff: Array(audioVisDisplay.ft_sample_count).fill(0),
+                volume: 0
+              };
+            let [dft, volume] = text.trim().split("|");
+            dft.split(" ").forEach((n, i) => {
+              Function.__audioVis.diff[i] = Function.__audioVis.data[i] - +n;
+              Function.__audioVis.data[i] = +n
+            });
+            Function.__audioVis.volume = + volume;
+            audioVisDisplay.requestPaint();
           }
         }
-        ctx.fill()
       }
     }
-    FrameAnimation {
-      running: true
-      onTriggered: {
-        audioVis.drawAudioVis()
-      }
-    }
+
     Item {
       id: mediaProgressBar
       Layout.alignment: Qt.AlignHCenter

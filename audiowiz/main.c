@@ -12,7 +12,12 @@ struct data
     struct pw_stream *stream;
 
     struct spa_audio_info format;
-    int processed;
+
+    float min_mel;
+    float max_mel;
+    int ft_samples_count;
+    float *sample_datas[2];
+    float *ft_output;
 };
 
 /* our data processing function is in general:
@@ -29,18 +34,15 @@ static void on_process(void *userdata)
     struct data *data = userdata;
     struct pw_buffer *b;
     struct spa_buffer *buf;
-    float *samples, max;
+    float *samples;
     uint32_t n, n_channels, n_samples;
 
-    if (data->processed) {
-        return;
-    }
     if ((b = pw_stream_dequeue_buffer(data->stream)) == NULL)
     {
         pw_log_warn("out of buffers: %m");
         return;
     }
-    
+
     buf = b->buffer;
     if ((samples = buf->datas[0].data) == NULL)
         return;
@@ -50,27 +52,37 @@ static void on_process(void *userdata)
     n_samples = buf->datas[0].chunk->size / sizeof(float);
     int samples_len = n_samples / n_channels;
 
-    float *sample_datas[2] = { malloc(samples_len * sizeof(float)), malloc(samples_len * sizeof(float)) };
-    float *a = malloc(300 * sizeof(float));
+    if (data->sample_datas[0] == NULL)
+    {
+        data->sample_datas[0] = malloc(samples_len * sizeof(float));
+        data->sample_datas[1] = malloc(samples_len * sizeof(float));
+    }
     for (int c = 0; c <= 1; c++)
     {
-        for (int i = 0; i < samples_len; i++) {
-            sample_datas[c][i] = samples[i * 2 + c];
+        for (int i = 0; i < samples_len; i++)
+        {
+            data->sample_datas[c][i] = samples[i * 2 + c];
         }
-
     }
-    
-    fourier_trans(sample_datas[0], samples_len, rate, a, 300);
-    for (int i = 0; i < 300; i++) {
-        printf("%f ", a[i]);
+    double rmsSum = 0;
+    for (int i = 0; i < data->ft_samples_count; i++)
+    {
+        rmsSum +=
+            data->sample_datas[0][i] * data->sample_datas[0][i];
     }
-    
+    float rms = sqrt(rmsSum);
+    fourier_trans(data->sample_datas[0], samples_len, rate, data->ft_output, data->ft_samples_count, data->min_mel, data->max_mel);
+    for (int i = 0; i < data->ft_samples_count; i++)
+    {
+        if (i != 0) printf(" ");
+        printf("%f", data->ft_output[i]);
+    }
+    printf("|");
+    printf("%.4f", rms);
     printf("\n");
     pw_stream_queue_buffer(data->stream, b);
-    free(sample_datas[0]);
-    free(sample_datas[1]);
-    free(a);
-}
+}    
+
 
 static void
 on_stream_param_changed(void *_data, uint32_t id, const struct spa_pod *param)
@@ -92,8 +104,7 @@ on_stream_param_changed(void *_data, uint32_t id, const struct spa_pod *param)
     /* call a helper function to parse the format for us. */
     spa_format_audio_raw_parse(param, &data->format.info.raw);
 
-    fprintf(stdout, "capturing rate:%d channels:%d\n",
-            data->format.info.raw.rate, data->format.info.raw.channels);
+    int _channels = data->format.info.raw.channels;
 }
 
 static const struct pw_stream_events stream_events = {
@@ -113,6 +124,27 @@ int main(int argc, char *argv[])
     struct data data = {
         0,
     };
+    if (argc != 4)
+    {
+        fprintf(stderr, "3 arguments required, only found %d\nusage: audiowiz <min_mel: number> <min_mel: number> <min_mel: number> <samples_count: number>", argc - 1);
+        return 1;
+    }
+    data.min_mel = atof(argv[1]);
+    if (data.min_mel <= 0.00001)
+        data.min_mel = 0.00001;
+    data.max_mel = atof(argv[2]);
+    if (data.min_mel >= data.max_mel)
+    {
+        fprintf(stderr, "min_mel of %f is greater than max_mel of %f", data.min_mel, data.max_mel);
+        return 1;
+    }
+    data.ft_samples_count = atoi(argv[3]);
+    if (data.ft_samples_count <= 0)
+    {
+        fprintf(stderr, "sample count of %d is invalid", data.ft_samples_count);
+        return 1;
+    }
+    data.ft_output = malloc(data.ft_samples_count * sizeof(float));
     const struct spa_pod *params[1];
     uint8_t buffer[1024];
     struct pw_properties *props;
@@ -175,6 +207,8 @@ int main(int argc, char *argv[])
     pw_stream_destroy(data.stream);
     pw_main_loop_destroy(data.loop);
     pw_deinit();
-
+    free(data.sample_datas[0]);
+    free(data.sample_datas[1]);
+    free(data.ft_output);
     return 0;
 }
