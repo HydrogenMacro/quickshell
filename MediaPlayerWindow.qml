@@ -127,7 +127,7 @@ PopupWindow {
         let maxVisualizerHeight = 25;
         let minBaseHeight = 1;
         let maxBaseHeight = audioVisDisplay.height / 2 - maxVisualizerHeight;
-        let visualizerHeightRamp = 10;
+        let visualizerHeightRamp = 12;
         let baseHeightRamp = 15;
         for (let i = 0; i < audioVisDisplay.ft_sample_count; i++) {
           let val = audioVis.data1[i];
