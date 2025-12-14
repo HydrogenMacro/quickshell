@@ -17,7 +17,7 @@ struct data
     float max_mel;
     int ft_samples_count;
     float *sample_datas[2];
-    float *ft_output;
+    float *ft_output[2];
 };
 
 /* our data processing function is in general:
@@ -64,21 +64,33 @@ static void on_process(void *userdata)
             data->sample_datas[c][i] = samples[i * 2 + c];
         }
     }
-    double rmsSum = 0;
+    float rms_sums[2] = { 0, 0 };
     for (int i = 0; i < data->ft_samples_count; i++)
     {
-        rmsSum +=
+        rms_sums[0] +=
             data->sample_datas[0][i] * data->sample_datas[0][i];
+        rms_sums[1] +=
+            data->sample_datas[1][i] * data->sample_datas[1][i];
     }
-    float rms = sqrt(rmsSum);
-    fourier_trans(data->sample_datas[0], samples_len, rate, data->ft_output, data->ft_samples_count, data->min_mel, data->max_mel);
+    float volumes[2] = { sqrt(rms_sums[0]), sqrt(rms_sums[1]) };
+    fourier_trans(data->sample_datas[0], samples_len, rate, data->ft_output[0], data->ft_samples_count, data->min_mel, data->max_mel);
+    fourier_trans(data->sample_datas[1], samples_len, rate, data->ft_output[1], data->ft_samples_count, data->min_mel, data->max_mel);
+    float max_sample_values[2] = { 0, 0 };
     for (int i = 0; i < data->ft_samples_count; i++)
     {
-        if (i != 0) printf(" ");
-        printf("%f", data->ft_output[i]);
+        max_sample_values[0] = fmaxf(max_sample_values[0], data->ft_output[0][i]);
+        max_sample_values[1] = fmaxf(max_sample_values[1], data->ft_output[1][i]);
     }
-    printf("|");
-    printf("%.4f", rms);
+    for (int sample_idx = 0; sample_idx <= 1; sample_idx += 1) {
+        for (int i = 0; i < data->ft_samples_count; i++)
+        {
+            if (i != 0) printf(" ");
+
+            printf("%f", fabsf(max_sample_values[sample_idx]) < .00001 ? 0 : data->ft_output[sample_idx][i] / max_sample_values[sample_idx]);
+        }
+        printf("|");
+    }
+    printf("%.4f|%.4f", rms_sums[0], rms_sums[1]);
     printf("\n");
     pw_stream_queue_buffer(data->stream, b);
 }    
@@ -144,7 +156,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "sample count of %d is invalid", data.ft_samples_count);
         return 1;
     }
-    data.ft_output = malloc(data.ft_samples_count * sizeof(float));
+    data.ft_output[0] = malloc(data.ft_samples_count * sizeof(float));
+    data.ft_output[1] = malloc(data.ft_samples_count * sizeof(float));
     const struct spa_pod *params[1];
     uint8_t buffer[1024];
     struct pw_properties *props;
@@ -209,6 +222,7 @@ int main(int argc, char *argv[])
     pw_deinit();
     free(data.sample_datas[0]);
     free(data.sample_datas[1]);
-    free(data.ft_output);
+    free(data.ft_output[0]);
+    free(data.ft_output[1]);
     return 0;
 }

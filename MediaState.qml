@@ -15,7 +15,7 @@ Singleton {
 
     // fix when currentPos sometimes adds the track length to itself
     if (currentPos > length) {
-        currentPos -= length
+      currentPos -= length;
     }
   }
   function togglePlaying() {
@@ -34,8 +34,8 @@ Singleton {
     Mpris.players.values[0].previous();
   }
   function seek(pos: real) {
-    Mpris.players.values[0].position = pos
-    this.currentPos = pos
+    Mpris.players.values[0].position = pos;
+    this.currentPos = pos;
   }
   Timer {
     running: MediaState.isPlaying

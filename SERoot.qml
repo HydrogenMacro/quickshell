@@ -4,7 +4,7 @@ import Quickshell.Widgets
 import QtQuick
 import QtQuick.Layouts
 
-Scope {  
+Scope {
   Variants {
     model: Quickshell.screens
     delegate: Component {
@@ -18,7 +18,7 @@ Scope {
           mask: Region {
             item: null
           }
-          
+
           anchors {
             bottom: true
             right: true
@@ -26,9 +26,9 @@ Scope {
             top: true
           }
           visible: true
-          
+
           screen: root.modelData
-          
+
           MediaPlayerWindow {}
         }
       }

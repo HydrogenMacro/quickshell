@@ -21,6 +21,7 @@ PopupWindow {
   anchor.rect.x: toplevel.width - this.width - 20
   anchor.rect.y: toplevel.height - this.height - 20
   visible: open
+  
   /*
   mask: Region {
     item: Rectangle {
@@ -28,7 +29,10 @@ PopupWindow {
       height: 0
     }
   }*/
-
+  FontLoader {
+    id: notoSansFont
+    source: "https://fonts.gstatic.com/s/nunito/v32/XRXV3I6Li01BKofINeaB.woff2"
+  }
   ColumnLayout {
     id: musicPanelContents
     implicitWidth: 300
@@ -40,7 +44,7 @@ PopupWindow {
       Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
       Layout.fillWidth: true
       Layout.preferredHeight: 30
-      Layout.bottomMargin: 15
+      Layout.bottomMargin: 5
       Rectangle {
         id: titleTextContainer
         anchors.fill: parent
@@ -56,12 +60,14 @@ PopupWindow {
           property real scrollTextPos: 0
           property string scrollText: (MediaState.title + " ".repeat(5)).repeat(3)
 
+          font.family: "Noto Sans"
           font.pixelSize: parent.height * .8
+          font.italic: !MediaState.mediaExists
+          font.weight: Font.Normal
           anchors.fill: parent
           horizontalAlignment: isScrolling ? Text.AlignLeft : Text.AlignHCenter
           verticalAlignment: Text.AlignVCenter
           text: isScrolling ? scrollText : MediaState.title
-          font.italic: !MediaState.mediaExists
           color: "white"
 
           TextMetrics {
@@ -96,48 +102,65 @@ PopupWindow {
         }
       }
     }
+
     /*
     ShaderEffect {
-      id: audioVis
+      id: audioVisDisplay
       Layout.alignment: Qt.AlignHCenter
       Layout.fillWidth: true
       Layout.preferredHeight: 50
       Layout.bottomMargin: 5
 
       fragmentShader: Qt.resolvedUrl("assets/shaders/audioVis.frag.qsb")
-
+      property int aa: 1
+      property real time: 0
+      property var a: [0, 1, .1, 1, .1, .5]
     }*/
+
     Canvas {
       id: audioVisDisplay
       Layout.alignment: Qt.AlignHCenter
       Layout.fillWidth: true
-      Layout.preferredHeight: 50
+      Layout.preferredHeight: 60
       Layout.bottomMargin: 5
       property var ctx
       property real ft_sample_count: 200
       onPaint: {
-        if (!Function.__audioVis) return
+        if (!Function.__audioVis)
+          return;
         let audioVis = Function.__audioVis;
         if (!audioVisDisplay.ctx)
           audioVisDisplay.ctx = getContext("2d");
         let ctx = audioVisDisplay.ctx;
+
+  
+
         ctx.reset();
         ctx.beginPath();
         ctx.strokeStyle = Qt.rgba(.5, .8, .5, 1);
-        let maxSample = 0;
-        let rmsSum = 0;
-        for (let i = 0; i < audioVis.data.length; i++) {
-          maxSample = Math.max(audioVis.data[i], maxSample);
-          rmsSum += audioVis.data[i] ** 2;
-        }
-        
+
+        let maxVisualizerHeight = 28;
+        let minBaseHeight = 1;
+        let maxBaseHeight = audioVisDisplay.height / 2 - maxVisualizerHeight;
+        let visualizerHeightRamp = 10;
+        let baseHeightRamp = 10;
         for (let i = 0; i < audioVisDisplay.ft_sample_count; i++) {
-          let val = audioVis.data[i];
-          if (i == 67) console.info(val, maxSample)
-          val = val / maxSample;
-          ctx.lineTo(i / audioVisDisplay.ft_sample_count * width, val * 30 + Math.log2(audioVis.volume) * 10, 3, 3);
+          let val = audioVis.data1[i];
+
+          let visualizerScale = (maxVisualizerHeight * audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + visualizerHeightRamp);
+          let baseScale = (maxBaseHeight * audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + baseHeightRamp);
+          ctx.lineTo(i / audioVisDisplay.ft_sample_count * audioVisDisplay.width, val * (visualizerScale) + audioVisDisplay.height / 2 + minBaseHeight + (maxBaseHeight - minBaseHeight) * baseScale);
         }
-        ctx.stroke();
+        for (let i = audioVisDisplay.ft_sample_count - 1; i >= 0; i--) {
+          let val = audioVis.data0[i];
+          let visualizerScale = (maxVisualizerHeight * audioVis.volume0 ** 2) / (audioVis.volume0 ** 2 + visualizerHeightRamp);
+          let baseScale = (maxBaseHeight * audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + baseHeightRamp);
+          ctx.lineTo(i / audioVisDisplay.ft_sample_count * audioVisDisplay.width, audioVisDisplay.height / 2 - val * visualizerScale - minBaseHeight - (maxBaseHeight - minBaseHeight) * baseScale);
+        }
+
+        ctx.closePath();
+        ctx.fillStyle = Qt.rgba(.5, .8, .5, 1);
+        ctx.fill();
       }
 
       Process {
@@ -149,16 +172,20 @@ PopupWindow {
             // global obj prop because theres a memory leak if normal qml properties are used
             if (!Function.__audioVis)
               Function.__audioVis = {
-                data: Array(audioVisDisplay.ft_sample_count),
-                diff: Array(audioVisDisplay.ft_sample_count).fill(0),
-                volume: 0
+                data0: Array(audioVisDisplay.ft_sample_count),
+                data1: Array(audioVisDisplay.ft_sample_count),
+                volume0: 0,
+                volume1: 0
               };
-            let [dft, volume] = text.trim().split("|");
-            dft.split(" ").forEach((n, i) => {
-              Function.__audioVis.diff[i] = Function.__audioVis.data[i] - +n;
-              Function.__audioVis.data[i] = +n
+            let [dft0, dft1, volume0, volume1] = text.trim().split("|");
+            dft0.split(" ").forEach((n, i) => {
+              Function.__audioVis.data0[i] = +n;
             });
-            Function.__audioVis.volume = + volume;
+            dft1.split(" ").forEach((n, i) => {
+              Function.__audioVis.data1[i] = +n;
+            });
+            Function.__audioVis.volume0 = +volume0;
+            Function.__audioVis.volume1 = +volume1;
             audioVisDisplay.requestPaint();
           }
         }
@@ -207,6 +234,7 @@ PopupWindow {
         x: mediaProgressBar.isSeeking ? mediaProgressBar.seekProgress * mediaProgressBar.seekAreaWidth : MediaState.currentPos / MediaState.length * mediaProgressBar.seekAreaWidth
       }
       Text {
+        font.family: "Noto Sans"
         x: 0
         anchors.top: mediaProgressBar.bottom
         text: `${Utils.formatTime(MediaState.currentPos)} / ${Utils.formatTime(MediaState.length)}`
