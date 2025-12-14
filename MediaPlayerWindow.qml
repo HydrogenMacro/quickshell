@@ -13,7 +13,7 @@ PopupWindow {
 
   property bool open: true
 
-  color: '#c8000000'
+  color: '#b1000000'
   anchor.window: toplevel
   property real padding: 20
   implicitWidth: 300 + padding * 2
@@ -103,26 +103,12 @@ PopupWindow {
       }
     }
 
-    /*
-    ShaderEffect {
-      id: audioVisDisplay
-      Layout.alignment: Qt.AlignHCenter
-      Layout.fillWidth: true
-      Layout.preferredHeight: 50
-      Layout.bottomMargin: 5
-
-      fragmentShader: Qt.resolvedUrl("assets/shaders/audioVis.frag.qsb")
-      property int aa: 1
-      property real time: 0
-      property var a: [0, 1, .1, 1, .1, .5]
-    }*/
-
     Canvas {
       id: audioVisDisplay
       Layout.alignment: Qt.AlignHCenter
       Layout.fillWidth: true
       Layout.preferredHeight: 60
-      Layout.bottomMargin: 5
+      Layout.bottomMargin: 10
       property var ctx
       property real ft_sample_count: 200
       onPaint: {
@@ -137,34 +123,38 @@ PopupWindow {
 
         ctx.reset();
         ctx.beginPath();
-        ctx.strokeStyle = Qt.rgba(.5, .8, .5, 1);
 
-        let maxVisualizerHeight = 28;
+        let maxVisualizerHeight = 25;
         let minBaseHeight = 1;
         let maxBaseHeight = audioVisDisplay.height / 2 - maxVisualizerHeight;
         let visualizerHeightRamp = 10;
-        let baseHeightRamp = 10;
+        let baseHeightRamp = 15;
         for (let i = 0; i < audioVisDisplay.ft_sample_count; i++) {
           let val = audioVis.data1[i];
 
           let visualizerScale = (maxVisualizerHeight * audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + visualizerHeightRamp);
-          let baseScale = (maxBaseHeight * audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + baseHeightRamp);
-          ctx.lineTo(i / audioVisDisplay.ft_sample_count * audioVisDisplay.width, val * (visualizerScale) + audioVisDisplay.height / 2 + minBaseHeight + (maxBaseHeight - minBaseHeight) * baseScale);
+          let baseScale = (audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + baseHeightRamp);
+          ctx.lineTo(i / (audioVisDisplay.ft_sample_count - 1) * audioVisDisplay.width, val * visualizerScale + audioVisDisplay.height / 2 + minBaseHeight + (maxBaseHeight - minBaseHeight) * baseScale);
         }
         for (let i = audioVisDisplay.ft_sample_count - 1; i >= 0; i--) {
           let val = audioVis.data0[i];
           let visualizerScale = (maxVisualizerHeight * audioVis.volume0 ** 2) / (audioVis.volume0 ** 2 + visualizerHeightRamp);
-          let baseScale = (maxBaseHeight * audioVis.volume1 ** 2) / (audioVis.volume1 ** 2 + baseHeightRamp);
-          ctx.lineTo(i / audioVisDisplay.ft_sample_count * audioVisDisplay.width, audioVisDisplay.height / 2 - val * visualizerScale - minBaseHeight - (maxBaseHeight - minBaseHeight) * baseScale);
+          let baseScale = (audioVis.volume0 ** 2) / (audioVis.volume0 ** 2 + baseHeightRamp);
+          ctx.lineTo(i / (audioVisDisplay.ft_sample_count - 1) * audioVisDisplay.width, audioVisDisplay.height / 2 - val * visualizerScale - minBaseHeight - (maxBaseHeight - minBaseHeight) * baseScale);
         }
 
         ctx.closePath();
-        ctx.fillStyle = Qt.rgba(.5, .8, .5, 1);
+        let col = (Date.now() * 1 / 3 % 1000) / 1000
+        ctx.fillStyle = Qt.hsla(col, 1, .95, 1);
+        ctx.strokeStyle = Qt.hsla(col, 1, .5, 1)
+        ctx.strokeWidth = 2
         ctx.fill();
+        ctx.stroke();
       }
 
       Process {
         running: true
+        // 10 mel is around 20hz, 1500 is around 2000
         command: ["/home/hydro/.config/quickshell/audiowiz/audiowiz", "10", "1500", audioVisDisplay.ft_sample_count]
 
         stdout: SplitParser {
@@ -175,8 +165,9 @@ PopupWindow {
                 data0: Array(audioVisDisplay.ft_sample_count),
                 data1: Array(audioVisDisplay.ft_sample_count),
                 volume0: 0,
-                volume1: 0
+                volume1: 0,
               };
+            Function.__audioVis.lastUpdate = Date.now()
             let [dft0, dft1, volume0, volume1] = text.trim().split("|");
             dft0.split(" ").forEach((n, i) => {
               Function.__audioVis.data0[i] = +n;
@@ -246,7 +237,7 @@ PopupWindow {
       Layout.preferredHeight: 30
       Layout.fillWidth: true
       Layout.alignment: Qt.AlignHCenter
-      Layout.topMargin: 5
+      Layout.topMargin: 8
 
       spacing: 10
       GButton {
