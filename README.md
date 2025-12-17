@@ -13,6 +13,7 @@ Contains an audio visualizer widget, powered by a Pipewire-based C program at [`
 ## Installation & Usage
  - Clone this into `~/.config/quickshell`
  - Install [quickshell](https://quickshell.org/) from your distro
+ - To compile the C program (in `/audiowiz`), install [`just`](https://www.just.systems) and run `just build-audiowiz` (or just copy the respective command from the justfile)
  - Run `quickshell` automatically, such as by appending it to your `~/.bashrc`.
  - To toggle the panel open, run `quickshell ipc call musicPanel toggleOpen`. You may bind this to a key or a shortcut.
     - On KDE Plasma, you can go to System Settings > Keyboard > Shortcuts > Add New > Command or Script.
