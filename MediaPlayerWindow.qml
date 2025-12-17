@@ -155,7 +155,7 @@ PopupWindow {
       Process {
         running: true
         // 10 mel is around 20hz, 1500 is around 2000
-        command: ["/home/hydro/.config/quickshell/audiowiz/audiowiz", "10", "1500", audioVisDisplay.ft_sample_count]
+        command: ["~/.config/quickshell/audiowiz/audiowiz", "10", "1500", audioVisDisplay.ft_sample_count]
 
         stdout: SplitParser {
           onRead: text => {
